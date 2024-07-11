@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Heart Checker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.js"></script>
+</head>
+<body>
+    <nav class="nav">
+        <div class="nav__logo">
+            <img src="{{ url_for('static', filename='images/cs.jpg') }}" alt="CardioSentry Logo">
+        </div>
+    </nav>
+    <div class="container">
+        <h1>CARDIO SENTRY</h1>
+        <p>
+            It predicts whether you have any chance of having a heart attack or not and you can search your nearby hospitals just by entering your pincode.
+        </p>
+        <div class="button-group">
+            <button id="predictorBtn">Click here to Predict your chances of a Heart Attack</button>
+            <button id="finderBtn">Click Here to Find Hospitals Nearby</button>
+        </div>
+        <div id="predictor" class="form-container">
+            <form action="/predict" method="post">
+                <div class="form-group">
+                    <div class="form-field">
+                        <label for="age">Enter Your Age:</label>
+                        <input type="number" id="age" name="age" required>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="sex">Enter your Gender:</label>
+                        <select id="sex" name="sex" required>
+                            <option value="1">MALE</option>
+                            <option value="0">FEMALE</option>
+                        </select>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="cp">Type Of Chest Pain experienced by you:</label>
+                        <select id="cp" name="cp" required>
+                            <option value="0">No Chest Pain</option>
+                            <option value="1">Typical Angina(Mainly due to Emotional/Physical Stress)</option>
+                            <option value="2">Atypical Angina(Chest Pain not severe)</option>
+                            <option value="3">Non-anginal Chest Pain(Discomfort in chest)</select>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="trestbps">Enter your Blood Pressure:</label>
+                        <input type="number" id="trestbps" name="trestbps" required>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="chol">Enter your Serum Cholesterol in mg/dl:</label>
+                        <input type="number" id="chol" name="chol" required>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="fbs">Is your Fasting Blood Sugar > 120 mg/dl:</label>
+                        <select id="fbs" name="fbs" required>
+                            <option value="1">YES</option>
+                            <option value="0">NO</select>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="restecg">Enter your Resting Electrocardiographic Results:</label>
+                        <select id="restecg" name="restecg" required>
+                            <option value="0">0-Normal</option>
+                            <option value="1">1-Having ST-T Wave Abnormality</option>
+                            <option value="2">2-Left Ventricular Hyperthropy</select>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="thalach">Enter your Maximum Heart Rate that you have measured</label>
+                        <input type="number" id="thalach" name="thalach" required>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="exang">Are you having any Angina Pain during Exercise?</label>
+                        <select id="exang" name="exang" required>
+                            <option value="1">YES</option>
+                            <option value="0">NO</select>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="oldpeak"> Enter your ST Depression Induced by Exercise Relative to Rest:</label>
+                        <input type="number" id="oldpeak" name="oldpeak" step="0.1" required>
+                    </div>
+                </div>
+                <button type="submit">Predict Now</button>
+            </form>
+            {% if result %}
+            <p class="result">{{ result }}</p>
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    document.getElementById('predictor').style.display = 'block';
+                    document.getElementById('finder').style.display = 'none';
+                });
+            </script>
+            {% endif %}
+        </div>
+
+        <div id="finder" class="form-container" style="display: none;">
+            <form id="locationForm">
+                <input type="text" id="locationInput" placeholder="Enter place or pincode" required>
+                <button type="submit">Search Hospitals</button>
+            </form>
+            <div id="hospitalList"></div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('predictorBtn').addEventListener('click', function() {
+            document.getElementById('predictor').style.display = 'block';
+            document.getElementById('finder').style.display = 'none';
+        });
+
+        document.getElementById('finderBtn').addEventListener('click', function() {
+            document.getElementById('predictor').style.display = 'none';
+            document.getElementById('finder').style.display = 'block';
+        });
+
+        document.getElementById('locationForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const location = document.getElementById('locationInput').value;
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${location}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.length > 0) {
+                        const { lat, lon } = data[0];
+                        findNearbyHospitals(lat, lon);
+                    } else {
+                        alert('Location not found. Please enter a valid place or pincode.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching location data:', error);
+                    alert('An error occurred while fetching location data. Please try again.');
+                });
+        });
+
+        function findNearbyHospitals(lat, lon) {
+            fetch(`https://overpass-api.de/api/interpreter?data=[out:json];node(around:5000,${lat},${lon})[amenity=hospital];out;`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.elements.length > 0) {
+                        const hospitals = data.elements.map(hospital => ({
+                            name: hospital.tags.name || 'Unnamed Hospital',
+                            lat: hospital.lat,
+                            lon: hospital.lon
+                        }));
+                        displayHospitals(hospitals);
+                    } else {
+                        document.getElementById('hospitalList').innerHTML = '<p>No hospitals found nearby.</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching hospital data:', error);
+                    document.getElementById('hospitalList').innerHTML = '<p>An error occurred while fetching hospital data. Please try again.</p>';
+                });
+        }
+
+        function displayHospitals(hospitals) {
+            const hospitalListElement = document.getElementById('hospitalList');
+            hospitalListElement.innerHTML = '';
+            hospitals.forEach(hospital => {
+                const googleMapsURL = `https://www.google.com/maps/search/?api=1&query=${hospital.lat},${hospital.lon}`;
+                const hospitalBox = document.createElement('div');
+                hospitalBox.className = 'hospital-box';
+                hospitalBox.innerHTML = `<strong>${hospital.name}</strong> - <a href="${googleMapsURL}" target="_blank">Google Maps</a>`;
+                hospitalListElement.appendChild(hospitalBox);
+            });
+        }
+
+    </script>
+</body>
+</html>
